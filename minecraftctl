@@ -15,8 +15,7 @@
 #   Changed running screen to work as root, broke it out into mc_docommand
 
 
-. /etc/conf.d/minecraft || echo "can't source /etc/conf.d/minecraft"
-
+. /etc/minecraft.conf || echo "can't source /etc/minecraft.conf"
 
 ME=`whoami`
 as_user() {
@@ -52,6 +51,27 @@ mc_saveon() {
   fi
 }
 
+mc_update() {
+  if pgrep -u $USERNAME -f $SERVICE > /dev/null
+  then
+    echo "$SERVICE is running! Will not start update."
+  else
+    as_user "cd $_SRVDIR && wget -O $_SRVDIR/minecraft_server.jar.update $MC_SERVER_URL"
+    if [ -f $_SRVDIR/minecraft_server.jar.update ]
+    then
+      if `diff $_SRVDIR/$SERVICE $_SRVDIR/minecraft_server.jar.update >/dev/null`
+      then 
+        echo "You are already running the latest version of $SERVICE."
+      else
+        as_user "mv $_SRVDIR/minecraft_server.jar.update $_SRVDIR/$SERVICE"
+        echo "Minecraft successfully updated."
+      fi
+    else
+      echo "Minecraft update could not be downloaded."
+    fi
+  fi
+}
+
 mc_backup() {
    mc_saveoff
    
@@ -70,6 +90,42 @@ mc_backup() {
    echo "Compressing backup..."
    as_user "gzip -f \"$BACKUP_FILE\""
    echo "Done."
+}
+   
+mc_overviewer() {
+   # check whether newest client is installed
+   if [ ! -e "${_CLIENTDIR}/${MCVERSION}" ]; then
+     mc_updateClient
+   fi
+   mc_saveoff
+   echo "Creating world backup to generate overviewer map from the backup"
+   as_user "rsync -rt --delete \"${_SRVDIR}/${WORLD}\" \"$BACKUPPATH\""
+   mc_saveon
+
+   # Generate map with overviewer
+   #echo "Executing overviewer with additional argument(s): $1"
+   #as_user "overviewer.py --config=$MAP_CONFIG $1"
+   # Generate map with Mapcrafter
+   echo "Executing Mapcrafter with additional argument(s): $1"
+   as_user "mapcrafter -c /etc/mapcrafter.conf -j 2 $1"
+   
+   echo "Copy files to Webserver"
+   rsync -rt --delete ${_SRVDIR}/map/ $_MAPDIR
+   #chown -R wwwrun:www $_MAPDIR
+   echo "Finished"
+}
+   
+mc_updateClient() {
+  # check whether newest client is installed
+  if [ -e "${_CLIENTDIR}/${MCVERSION}" ]; then
+     echo "newest client ver. ${MCVERSION} is installed already"
+  else
+    # Download the new Minecraft client software
+    echo "downloading newest client ${MCVERSION}"
+    as_user "wget -P \"${_CLIENTDIR}/${MCVERSION}\" \"$CLIENT_URL\""
+    # update mapcrafter textures
+    mapcrafter_textures.py -f "${_CLIENTDIR}/${MCVERSION}/${MCVERSION}.jar" "/usr/local/share/mapcrafter/textures/"
+  fi
 }
 
 mc_command() {
@@ -103,6 +159,15 @@ case "$1" in
       echo "$SERVICE is not running."
     fi
     ;;
+  update)
+    mc_update
+    ;;
+  updateClient)
+    mc_updateClient
+    ;;
+  map|overviewer)
+    mc_overviewer "$2"
+    ;;
   command)
     if [ $# -gt 1 ]; then
       shift
@@ -113,7 +178,7 @@ case "$1" in
     ;;
 
   *)
-    echo "Usage: $0 {backup|status|command \"server command\"}"
+    echo "Usage: $0 {backup|status|update|updateClient|map|command \"server command\"}"
     exit 1
   ;;
 esac
