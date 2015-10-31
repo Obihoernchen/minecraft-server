@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. /etc/conf.d/minecraft || echo "can't source /etc/conf.d/minecraft"
+. /etc/minecraft.conf || echo "can't source /etc/minecraft.conf"
 
 cd $_SRVDIR
-screen -dmS minecraft su ${MCUSER} -c "PATH=/opt/java/bin/:/usr/bin/:$PATH java -Xmx${MAXHEAP} -Xms${MINHEAP} -XX:+UseConcMarkSweepGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=${THREADS} -XX:+AggressiveOpts -jar ${_SRVDIR}/${SERVERJAR} nogui"
+#screen -dmS minecraft su minecraft -c "PATH=/opt/java/bin/:/usr/bin/:$PATH java -server -Xmx${MAXHEAP} -Xms${MINHEAP} -XX:+UseConcMarkSweepGC -XX:+UseParNewGC -XX:+CMSIncrementalPacing -XX:ParallelGCThreads=${THREADS} -XX:+AggressiveOpts -jar ${_SRVDIR}/${SERVERJAR} nogui"
+screen -dmS minecraft su minecraft -c "PATH=/opt/java/bin/:/usr/bin/:$PATH java -server -Xmx${MAXHEAP} -Xms${MINHEAP} -jar ${_SRVDIR}/${SERVERJAR} nogui"
